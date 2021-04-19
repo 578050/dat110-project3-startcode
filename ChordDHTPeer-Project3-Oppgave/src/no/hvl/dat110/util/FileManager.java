@@ -20,7 +20,6 @@ import java.util.Set;
 
 import no.hvl.dat110.middleware.Message;
 import no.hvl.dat110.rpc.interfaces.NodeInterface;
-import no.hvl.dat110.util.Hash;
 
 public class FileManager {
 	
@@ -32,6 +31,7 @@ public class FileManager {
 	private BigInteger hash;
 	private byte[] bytesOfFile;
 	private String sizeOfByte;
+	
 	
 	private Set<Message> activeNodesforFile = null;
 	
@@ -57,13 +57,15 @@ public class FileManager {
 		// implement
 		
 		// set a loop where size = numReplicas
-		
-		// replicate by adding the index to filename
-		
-		// hash the replica
-		
-		// store the hash in the replicafiles array.
-
+		for(int i = 0; i < Util.numReplicas; i++) {
+			
+			// replicate by adding the index to filename
+			String filename2 = filename + i;
+			// hash the replica
+			
+			// store the hash in the replicafiles array.
+			replicafiles[i] = Hash.hashOf(filename2);
+		}
 	}
 	
     /**
@@ -77,19 +79,30 @@ public class FileManager {
     	// Task1: Given a filename, make replicas and distribute them to all active peers such that: pred < replica <= peer
     	
     	// Task2: assign a replica as the primary for this file. Hint, see the slide (project 3) on Canvas
-    	
+    	Random random = new Random();
+    	int primary = random.nextInt(replicafiles.length - 1);
     	// create replicas of the filename
-    	
+    	createReplicaFiles();
 		// iterate over the replicas
-    	
-    	// for each replica, find its successor by performing findSuccessor(replica)
-    	
-    	// call the addKey on the successor and add the replica
-    	
-    	// call the saveFileContent() on the successor
-    	
-    	// increment counter
-    	
+    	for(int i = 0; i < replicafiles.length; i++) {
+    		
+    		// for each replica, find its successor by performing findSuccessor(replica)
+    		BigInteger replica = replicafiles[i];
+    		NodeInterface successor = chordnode.findSuccessor(replica);
+    		
+    		// call the addKey on the successor and add the replica
+    		successor.addKey(replica);
+    		
+    		// call the saveFileContent() on the successor
+    		if(counter == primary) {
+    			successor.saveFileContent(filename, replica, bytesOfFile, true);
+    		} else {
+    			successor.saveFileContent(filename, replica, bytesOfFile, false);
+    		}
+    		// increment counter
+    		counter++;
+    		
+    	}
     		
 		return counter;
     }
@@ -107,14 +120,24 @@ public class FileManager {
 		// Task: Given a filename, find all the peers that hold a copy of this file
 		
 		// generate the N replicas from the filename by calling createReplicaFiles()
-		
+		createReplicaFiles();
 		// it means, iterate over the replicas of the file
+		for(int i = 0; i < replicafiles.length; i++) {
+			
+			// for each replica, do findSuccessor(replica) that returns successor s.
+			BigInteger replica = replicafiles[i];
+			NodeInterface successor = chordnode.findSuccessor(replica);
+			
+			// get the metadata (Message) of the replica from the successor, s (i.e. active peer) of the file
+			Message message = successor.getFilesMetadata(replica);
+			
+			// save the metadata in the set succinfo.
+			succinfo.add(message);
+		}
+	
 		
-		// for each replica, do findSuccessor(replica) that returns successor s.
 		
-		// get the metadata (Message) of the replica from the successor, s (i.e. active peer) of the file
 		
-		// save the metadata in the set succinfo.
 		
 		this.activeNodesforFile = succinfo;
 		
@@ -130,10 +153,22 @@ public class FileManager {
 		// Task: Given all the active peers of a file (activeNodesforFile()), find which is holding the primary copy
 		
 		// iterate over the activeNodesforFile
-		
-		// for each active peer (saved as Message)
-		
-		// use the primaryServer boolean variable contained in the Message class to check if it is the primary or not
+		try {
+			Set<Message> messages = requestActiveNodesForFile(filename);
+			
+			// for each active peer (saved as Message)
+			for(Message m : messages) {
+				
+				// use the primaryServer boolean variable contained in the Message class to check if it is the primary or not
+				if(m.isPrimaryServer()) {
+					return getChordnode();
+				}
+			}
+			
+		} catch (RemoteException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		
 		// return the primary
 		
